@@ -14,12 +14,19 @@ public:
     auto fmt_ctx = ffmod::avformat_open_input(filename);
     ffmod::avformat_find_stream_info(fmt_ctx);
 
+    // TODO: detect stream type instead of guessing
+    // This allows usage of files with multiple streams (ex: OBS with two audio
+    // tracks)
+
+    auto vidx = ffmod::av_find_best_stream(fmt_ctx, AVMEDIA_TYPE_VIDEO);
+
     auto vctx = ffmod::avcodec_open_best(fmt_ctx, AVMEDIA_TYPE_VIDEO);
     auto actx = ffmod::avcodec_open_best(fmt_ctx, AVMEDIA_TYPE_AUDIO);
 
     auto pkt = ffmod::av_packet_alloc();
+    auto frm = ffmod::av_frame_alloc();
 
-    voo::h2l_image frm;
+    voo::h2l_image frm_buf;
 
     while (!interrupted()) {
       voo::swapchain_and_stuff sw{dq};
@@ -31,14 +38,25 @@ public:
         // a variable size (e.g. MPEG audio), then it contains one frame."
         ffmod::packet_ref pkt_ref{};
         while (!interrupted() && *(pkt_ref = ffmod::av_read_frame(fmt_ctx, pkt))) {
-          sw.acquire_next_image();
-          sw.queue_one_time_submit(dq, [&](auto pcb) {
-            // frm.setup_copy(*pcb);
+          // skip audio deocding
+          if ((*pkt)->stream_index != vidx) {
+            continue;
+          }
 
-            auto scb = sw.cmd_render_pass(pcb);
-            ;
-          });
-          sw.queue_present(dq);
+          ffmod::avcodec_send_packet(vctx, pkt);
+          ffmod::frame_ref frm_ref{};
+          while (!interrupted() &&
+                 *(frm_ref = ffmod::avcodec_receive_frame(vctx, frm))) {
+            sw.acquire_next_image();
+            sw.queue_one_time_submit(dq, [&](auto pcb) {
+              // output *frm
+              // frm_buf.setup_copy(*pcb);
+
+              auto scb = sw.cmd_render_pass(pcb);
+              ;
+            });
+            sw.queue_present(dq);
+          }
         }
       });
       dq.device_wait_idle();
