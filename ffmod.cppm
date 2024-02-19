@@ -21,7 +21,7 @@ struct deleter {
   void operator()(AVCodecContext *c) { avcodec_free_context(&c); }
   void operator()(AVFormatContext *c) { avformat_close_input(&c); }
   // void operator()(AVFrame *c) { av_frame_free(&c); }
-  // void operator()(AVPacket *c) { av_packet_free(&c); }
+  void operator()(AVPacket *c) { av_packet_free(&c); }
 };
 struct unref {
   // void operator()(AVFrame *c) { av_frame_unref(c); }
@@ -40,6 +40,7 @@ inline int assert_p(int i, const char *msg) {
 
 using codec_ctx = hai::holder<AVCodecContext, deleter>;
 using fmt_ctx = hai::holder<AVFormatContext, deleter>;
+using packet = hai::holder<AVPacket, deleter>;
 
 export auto avformat_open_input(const char *filename) {
   fmt_ctx res{};
@@ -71,4 +72,6 @@ export auto avcodec_open_best(fmt_ctx &ctx, AVMediaType mt) {
 
   return res;
 }
+
+export auto av_packet_alloc() { return packet{::av_packet_alloc()}; }
 } // namespace ffmod
