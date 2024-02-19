@@ -25,7 +25,7 @@ struct deleter {
 };
 struct unref {
   // void operator()(AVFrame *c) { av_frame_unref(c); }
-  // void operator()(AVPacket *c) { av_packet_unref(c); }
+  void operator()(AVPacket *c) { av_packet_unref(c); }
 };
 
 inline void assert(bool cond, const char *msg) {
@@ -38,9 +38,11 @@ inline int assert_p(int i, const char *msg) {
   return i;
 }
 
-using codec_ctx = hai::holder<AVCodecContext, deleter>;
-using fmt_ctx = hai::holder<AVFormatContext, deleter>;
-using packet = hai::holder<AVPacket, deleter>;
+export using codec_ctx = hai::holder<AVCodecContext, deleter>;
+export using fmt_ctx = hai::holder<AVFormatContext, deleter>;
+export using packet = hai::holder<AVPacket, deleter>;
+
+export using packet_ref = hai::holder<AVPacket, unref>;
 
 export auto avformat_open_input(const char *filename) {
   fmt_ctx res{};
@@ -74,4 +76,11 @@ export auto avcodec_open_best(fmt_ctx &ctx, AVMediaType mt) {
 }
 
 export auto av_packet_alloc() { return packet{::av_packet_alloc()}; }
+
+export auto av_read_frame(fmt_ctx &ctx, packet &pkt) {
+  if (av_read_frame(*ctx, *pkt) < 0) {
+    return packet_ref{};
+  }
+  return packet_ref{*pkt};
+}
 } // namespace ffmod

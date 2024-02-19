@@ -24,19 +24,24 @@ public:
     while (!interrupted()) {
       voo::swapchain_and_stuff sw{dq};
 
-      extent_loop(dq, sw, [&] {
+      extent_loop([&] {
         // From FFMPEG docs: "For video, the packet contains exactly one frame.
         // For audio, it contains an integer number of frames if each frame has
         // a known fixed size (e.g. PCM or ADPCM data). If the audio frames have
         // a variable size (e.g. MPEG audio), then it contains one frame."
+        ffmod::packet_ref pkt_ref{};
+        while (!interrupted() && *(pkt_ref = ffmod::av_read_frame(fmt_ctx, pkt))) {
+          sw.acquire_next_image();
+          sw.queue_one_time_submit(dq, [&](auto pcb) {
+            // frm.setup_copy(*pcb);
 
-        sw.queue_one_time_submit(dq, [&](auto pcb) {
-          // frm.setup_copy(*pcb);
-
-          auto scb = sw.cmd_render_pass(pcb);
-          ;
-        });
+            auto scb = sw.cmd_render_pass(pcb);
+            ;
+          });
+          sw.queue_present(dq);
+        }
       });
+      dq.device_wait_idle();
     }
   }
 };
