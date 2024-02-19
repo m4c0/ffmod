@@ -45,6 +45,8 @@ export auto avformat_open_input(const char *filename) {
   fmt_ctx res{};
   assert_p(avformat_open_input(&*res, filename, nullptr, nullptr),
            "Failed to read input file");
+
+  av_dump_format(*res, 0, filename, 0);
   return res;
 }
 
