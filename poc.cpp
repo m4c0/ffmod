@@ -32,6 +32,9 @@ public:
     auto fmt_ctx = ffmod::avformat_open_input(filename);
     ffmod::avformat_find_stream_info(fmt_ctx);
 
+    auto vctx = ffmod::avcodec_open_best(fmt_ctx, AVMEDIA_TYPE_VIDEO);
+    auto actx = ffmod::avcodec_open_best(fmt_ctx, AVMEDIA_TYPE_AUDIO);
+
     while (!interrupted()) {
       voo::swapchain_and_stuff sw{dq};
 
