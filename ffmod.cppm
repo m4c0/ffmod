@@ -106,9 +106,40 @@ export auto avcodec_receive_frame(codec_ctx &ctx, frame &frm) {
   assert_p(err, "Error decoding frame");
 }
 
+// ffmpeg sends partial lines for each call. we need to track it and only submit
+// when we reach a CRLF
+char log_buf[10240]{};
+
+inline auto log_level(int lvl) {
+  if (lvl <= AV_LOG_ERROR)
+    return silog::error;
+  if (lvl <= AV_LOG_WARNING)
+    return silog::warning;
+  if (lvl <= AV_LOG_INFO)
+    return silog::info;
+
+  return silog::debug;
+}
 void log_callback(void *avc, int lvl, const char *fmt, va_list args) {
-  // TODO: support level and args
-  silog::log(silog::debug, "%s", fmt);
+  // MS, in its infinite wisdom, expect us to pass a char[Sz] to vsnprintf_s
+  // So, double-triple-quadruple copying it is
+  char buf[10240];
+  auto fsz = vsnprintf_s(buf, sizeof(buf), fmt, args);
+
+  strncat_s(log_buf, sizeof(log_buf), buf, fsz);
+  auto len = strlen(log_buf);
+
+  if (buf[fsz - 1] == '\n') {
+    log_buf[len - 1] = 0;
+
+    auto l = log_level(lvl);
+    // We can only do this check when printing. ffmpeg sends different levels
+    // while it constructs the message
+    if (l != silog::debug)
+      silog::log(l, "[ffmpeg] %s", log_buf);
+
+    log_buf[0] = 0;
+  }
 }
 
 struct init {
