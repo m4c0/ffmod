@@ -105,4 +105,13 @@ export auto avcodec_receive_frame(codec_ctx &ctx, frame &frm) {
     return frame_ref{};
   assert_p(err, "Error decoding frame");
 }
+
+void log_callback(void *avc, int lvl, const char *fmt, va_list args) {
+  // TODO: support level and args
+  silog::log(silog::debug, "%s", fmt);
+}
+
+struct init {
+  init() { av_log_set_callback(log_callback); }
+} i{};
 } // namespace ffmod
