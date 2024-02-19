@@ -106,6 +106,24 @@ export auto avcodec_receive_frame(codec_ctx &ctx, frame &frm) {
   assert_p(err, "Error decoding frame");
 }
 
+export void avcodec_flush_buffers(codec_ctx &ctx) {
+  avcodec_flush_buffers(*ctx);
+}
+
+export void avformat_seek_file(fmt_ctx &ctx, double timestamp) {
+  auto vtb = static_cast<int>(timestamp * static_cast<double>(AV_TIME_BASE));
+  assert_p(avformat_seek_file(*ctx, -1, INT64_MIN, vtb, vtb, 0),
+           "Failed to seek");
+}
+
+export auto frame_timestamp(const fmt_ctx &ctx, const frame &frm,
+                            unsigned idx) {
+  auto st = (*ctx)->streams[idx];
+  auto t = static_cast<double>((*frm)->pts);
+  auto tb = st->time_base;
+  return t * av_q2d(tb);
+}
+
 // ffmpeg sends partial lines for each call. we need to track it and only submit
 // when we reach a CRLF
 char log_buf[10240]{};
