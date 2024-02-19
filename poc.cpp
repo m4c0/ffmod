@@ -59,6 +59,11 @@ public:
     auto dsl = vee::create_descriptor_set_layout(
         {vee::dsl_fragment_samplers({*yuv_smp})});
 
+    // TODO: find out why we need two samplers here
+    auto dp = vee::create_descriptor_pool(1, {vee::combined_image_sampler(2)});
+    auto dset = vee::allocate_descriptor_set(*dp, *dsl);
+    vee::update_descriptor_set(dset, 0, frm_buf.iv());
+
     auto pl = vee::create_pipeline_layout({*dsl});
     auto gp = vee::create_graphics_pipeline({
         .pipeline_layout = *pl,
@@ -107,6 +112,7 @@ public:
 
               auto scb = sw.cmd_render_pass(pcb);
               vee::cmd_bind_gr_pipeline(*scb, *gp);
+              vee::cmd_bind_descriptor_set(*scb, *pl, 0, dset);
               quad.run(scb, 0);
             });
             sw.queue_present(dq);
