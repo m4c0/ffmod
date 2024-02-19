@@ -1,4 +1,6 @@
-#pragma leco tool
+#pragma leco app
+#pragma leco add_shader "poc.frag"
+#pragma leco add_shader "poc.vert"
 import casein;
 import ffmod;
 import vee;
