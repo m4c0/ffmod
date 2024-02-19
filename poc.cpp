@@ -34,6 +34,7 @@ class thread : public voo::casein_thread {
 public:
   void run() override {
     voo::device_and_queue dq{"ffmod", native_ptr()};
+    voo::one_quad quad{dq};
 
     auto fmt_ctx = ffmod::avformat_open_input(filename);
     ffmod::avformat_find_stream_info(fmt_ctx);
@@ -53,6 +54,26 @@ public:
     auto w = static_cast<unsigned>((*vctx)->width);
     auto h = static_cast<unsigned>((*vctx)->height);
     voo::h2l_yuv_image frm_buf{dq, w, h};
+
+    auto yuv_smp = vee::create_yuv_sampler(vee::linear_sampler, frm_buf.conv());
+    auto dsl = vee::create_descriptor_set_layout(
+        {vee::dsl_fragment_samplers({*yuv_smp})});
+
+    auto pl = vee::create_pipeline_layout({*dsl});
+    auto gp = vee::create_graphics_pipeline({
+        .pipeline_layout = *pl,
+        .render_pass = dq.render_pass(),
+        .shaders{
+            voo::shader("poc.vert.spv").pipeline_vert_stage(),
+            voo::shader("poc.frag.spv").pipeline_frag_stage(),
+        },
+        .bindings{
+            quad.vertex_input_bind(),
+        },
+        .attributes{
+            quad.vertex_attribute(0),
+        },
+    });
 
     while (!interrupted()) {
       voo::swapchain_and_stuff sw{dq};
@@ -85,7 +106,8 @@ public:
               frm_buf.setup_copy(*pcb);
 
               auto scb = sw.cmd_render_pass(pcb);
-              ;
+              vee::cmd_bind_gr_pipeline(*scb, *gp);
+              quad.run(scb, 0);
             });
             sw.queue_present(dq);
           }
