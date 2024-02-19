@@ -7,6 +7,28 @@ import voo;
 static constexpr const auto filename = "movie.mov";
 
 class thread : public voo::casein_thread {
+  void copy_frame(voo::h2l_yuv_image *img, ffmod::frame &frm, unsigned w,
+                  unsigned h) {
+    voo::mapmem y{img->host_memory_y()};
+    auto *yy = static_cast<unsigned char *>(*y);
+    for (auto y = 0; y < h; y++) {
+      for (auto x = 0; x < w; x++) {
+        *yy++ = (*frm)->data[0][y * (*frm)->linesize[0] + x];
+      }
+    }
+
+    voo::mapmem u{img->host_memory_u()};
+    auto *uu = static_cast<unsigned char *>(*u);
+    voo::mapmem v{img->host_memory_v()};
+    auto *vv = static_cast<unsigned char *>(*v);
+    for (auto y = 0; y < h / 2; y++) {
+      for (auto x = 0; x < w / 2; x++) {
+        *uu++ = (*frm)->data[1][y * (*frm)->linesize[1] + x];
+        *vv++ = (*frm)->data[2][y * (*frm)->linesize[2] + x];
+      }
+    }
+  }
+
 public:
   void run() override {
     voo::device_and_queue dq{"ffmod", native_ptr()};
@@ -26,7 +48,9 @@ public:
     auto pkt = ffmod::av_packet_alloc();
     auto frm = ffmod::av_frame_alloc();
 
-    voo::h2l_image frm_buf;
+    auto w = static_cast<unsigned>((*vctx)->width);
+    auto h = static_cast<unsigned>((*vctx)->height);
+    voo::h2l_yuv_image frm_buf{dq, w, h};
 
     while (!interrupted()) {
       voo::swapchain_and_stuff sw{dq};
@@ -47,10 +71,11 @@ public:
           ffmod::frame_ref frm_ref{};
           while (!interrupted() &&
                  *(frm_ref = ffmod::avcodec_receive_frame(vctx, frm))) {
+            copy_frame(&frm_buf, frm, w, h);
+
             sw.acquire_next_image();
             sw.queue_one_time_submit(dq, [&](auto pcb) {
-              // output *frm
-              // frm_buf.setup_copy(*pcb);
+              frm_buf.setup_copy(*pcb);
 
               auto scb = sw.cmd_render_pass(pcb);
               ;
