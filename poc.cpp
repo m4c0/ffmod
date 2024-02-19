@@ -60,17 +60,22 @@ public:
         // For audio, it contains an integer number of frames if each frame has
         // a known fixed size (e.g. PCM or ADPCM data). If the audio frames have
         // a variable size (e.g. MPEG audio), then it contains one frame."
-        ffmod::packet_ref pkt_ref{};
-        while (!interrupted() && *(pkt_ref = ffmod::av_read_frame(fmt_ctx, pkt))) {
+        while (!interrupted()) {
+          auto pkt_ref = ffmod::av_read_frame(fmt_ctx, pkt);
+          if (!*pkt_ref)
+            break;
+
           // skip audio deocding
           if ((*pkt)->stream_index != vidx) {
             continue;
           }
 
           ffmod::avcodec_send_packet(vctx, pkt);
-          ffmod::frame_ref frm_ref{};
-          while (!interrupted() &&
-                 *(frm_ref = ffmod::avcodec_receive_frame(vctx, frm))) {
+          while (!interrupted()) {
+            auto frm_ref = ffmod::avcodec_receive_frame(vctx, frm);
+            if (!*frm_ref)
+              break;
+
             copy_frame(&frm_buf, frm, w, h);
 
             sw.acquire_next_image();
