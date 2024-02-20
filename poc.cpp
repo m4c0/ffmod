@@ -91,9 +91,11 @@ public:
                 if (!*frm_ref)
                   break;
 
+                // TODO: proper conversion from sample rate to 44100
+                auto n = (*frm)->nb_samples * 44100 / (*frm)->sample_rate;
                 auto *data =
                     reinterpret_cast<float *>((*frm)->extended_data[0]);
-                m_audio.push_frame(data, (*frm)->nb_samples);
+                m_audio.push_frame(data, n);
               }
             continue;
           } else if ((*pkt)->stream_index == vidx) {
