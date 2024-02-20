@@ -68,8 +68,7 @@ export auto av_find_best_stream(fmt_ctx &ctx, AVMediaType mt) {
   return idx;
 }
 
-export auto avcodec_open_best(fmt_ctx &ctx, AVMediaType mt) {
-  auto idx = av_find_best_stream(ctx, mt);
+export auto avcodec_open(fmt_ctx &ctx, unsigned idx) {
   auto st = (*ctx)->streams[idx];
   assert(st, "Missing stream");
   auto dec = avcodec_find_decoder(st->codecpar->codec_id);
@@ -82,6 +81,17 @@ export auto avcodec_open_best(fmt_ctx &ctx, AVMediaType mt) {
   assert_p(avcodec_open2(*res, dec, nullptr), "Could not open codec");
 
   return res;
+}
+export auto avcodec_open_best(fmt_ctx &ctx, AVMediaType mt) {
+  auto idx = av_find_best_stream(ctx, mt);
+  return avcodec_open(ctx, idx);
+}
+export auto avcodec_open_all(fmt_ctx &ctx) {
+  hai::array<codec_ctx> all{(*ctx)->nb_streams};
+  for (auto i = 0U; i < all.size(); i++) {
+    all[i] = avcodec_open(ctx, i);
+  }
+  return all;
 }
 
 export auto av_packet_alloc() { return packet{::av_packet_alloc()}; }
