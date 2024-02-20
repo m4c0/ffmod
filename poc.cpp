@@ -8,29 +8,33 @@ import voo;
 
 static constexpr const auto filename = "movie.mov";
 
+void copy_frame_yuv(const ffmod::frame &frm, unsigned char *yy,
+                    unsigned char *uu, unsigned char *vv) {
+  auto w = (*frm)->width;
+  auto h = (*frm)->height;
+
+  for (auto y = 0; y < h; y++) {
+    for (auto x = 0; x < w; x++) {
+      *yy++ = (*frm)->data[0][y * (*frm)->linesize[0] + x];
+    }
+  }
+  for (auto y = 0; y < h / 2; y++) {
+    for (auto x = 0; x < w / 2; x++) {
+      *uu++ = (*frm)->data[1][y * (*frm)->linesize[1] + x];
+      *vv++ = (*frm)->data[2][y * (*frm)->linesize[2] + x];
+    }
+  }
+}
+
 class thread : public voo::casein_thread {
   void copy_frame(voo::h2l_yuv_image *img, ffmod::frame &frm) {
-    auto w = (*frm)->width;
-    auto h = (*frm)->height;
-
     voo::mapmem y{img->host_memory_y()};
-    auto *yy = static_cast<unsigned char *>(*y);
-    for (auto y = 0; y < h; y++) {
-      for (auto x = 0; x < w; x++) {
-        *yy++ = (*frm)->data[0][y * (*frm)->linesize[0] + x];
-      }
-    }
-
     voo::mapmem u{img->host_memory_u()};
-    auto *uu = static_cast<unsigned char *>(*u);
     voo::mapmem v{img->host_memory_v()};
-    auto *vv = static_cast<unsigned char *>(*v);
-    for (auto y = 0; y < h / 2; y++) {
-      for (auto x = 0; x < w / 2; x++) {
-        *uu++ = (*frm)->data[1][y * (*frm)->linesize[1] + x];
-        *vv++ = (*frm)->data[2][y * (*frm)->linesize[2] + x];
-      }
-    }
+
+    copy_frame_yuv(frm, static_cast<unsigned char *>(*y),
+                   static_cast<unsigned char *>(*u),
+                   static_cast<unsigned char *>(*v));
   }
 
 public:
