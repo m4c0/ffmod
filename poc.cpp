@@ -9,8 +9,10 @@ import voo;
 static constexpr const auto filename = "movie.mov";
 
 class thread : public voo::casein_thread {
-  void copy_frame(voo::h2l_yuv_image *img, ffmod::frame &frm, unsigned w,
-                  unsigned h) {
+  void copy_frame(voo::h2l_yuv_image *img, ffmod::frame &frm) {
+    auto w = (*frm)->width;
+    auto h = (*frm)->height;
+
     voo::mapmem y{img->host_memory_y()};
     auto *yy = static_cast<unsigned char *>(*y);
     for (auto y = 0; y < h; y++) {
@@ -104,7 +106,7 @@ public:
             if (!*frm_ref)
               break;
 
-            copy_frame(&frm_buf, frm, w, h);
+            copy_frame(&frm_buf, frm);
 
             sw.acquire_next_image();
             sw.queue_one_time_submit(dq, [&](auto pcb) {
