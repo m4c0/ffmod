@@ -3,12 +3,15 @@
 #pragma leco add_shader "poc.vert"
 import casein;
 import ffmod;
+import siaudio;
 import vee;
 import voo;
 
 static constexpr const auto filename = "movie.mov";
 
 class thread : public voo::casein_thread {
+  siaudio::ring_buffered_stream m_audio{};
+
   void copy_frame(voo::h2l_yuv_image *img, ffmod::frame &frm) {
     voo::mapmem y{img->host_memory_y()};
     voo::mapmem u{img->host_memory_u()};
@@ -31,6 +34,7 @@ public:
     // tracks)
 
     auto vidx = ffmod::av_find_best_stream(fmt_ctx, AVMEDIA_TYPE_VIDEO);
+    auto aidx = ffmod::av_find_best_stream(fmt_ctx, AVMEDIA_TYPE_AUDIO);
 
     auto vctx = ffmod::avcodec_open_best(fmt_ctx, AVMEDIA_TYPE_VIDEO);
     auto actx = ffmod::avcodec_open_best(fmt_ctx, AVMEDIA_TYPE_AUDIO);
@@ -80,29 +84,38 @@ public:
           if (!*pkt_ref)
             break;
 
-          // skip audio deocding
-          if ((*pkt)->stream_index != vidx) {
+          if ((*pkt)->stream_index == aidx) {
+              ffmod::avcodec_send_packet(actx, pkt);
+              while (!interrupted()) {
+                auto frm_ref = ffmod::avcodec_receive_frame(actx, frm);
+                if (!*frm_ref)
+                  break;
+
+                auto *data =
+                    reinterpret_cast<float *>((*frm)->extended_data[0]);
+                m_audio.push_frame(data, (*frm)->nb_samples);
+              }
             continue;
-          }
+          } else if ((*pkt)->stream_index == vidx) {
+            ffmod::avcodec_send_packet(vctx, pkt);
+            while (!interrupted()) {
+              auto frm_ref = ffmod::avcodec_receive_frame(vctx, frm);
+              if (!*frm_ref)
+                break;
 
-          ffmod::avcodec_send_packet(vctx, pkt);
-          while (!interrupted()) {
-            auto frm_ref = ffmod::avcodec_receive_frame(vctx, frm);
-            if (!*frm_ref)
-              break;
+              copy_frame(&frm_buf, frm);
 
-            copy_frame(&frm_buf, frm);
+              sw.acquire_next_image();
+              sw.queue_one_time_submit(dq, [&](auto pcb) {
+                frm_buf.setup_copy(*pcb);
 
-            sw.acquire_next_image();
-            sw.queue_one_time_submit(dq, [&](auto pcb) {
-              frm_buf.setup_copy(*pcb);
-
-              auto scb = sw.cmd_render_pass(pcb);
-              vee::cmd_bind_gr_pipeline(*scb, *gp);
-              vee::cmd_bind_descriptor_set(*scb, *pl, 0, dset);
-              quad.run(scb, 0);
-            });
-            sw.queue_present(dq);
+                auto scb = sw.cmd_render_pass(pcb);
+                vee::cmd_bind_gr_pipeline(*scb, *gp);
+                vee::cmd_bind_descriptor_set(*scb, *pl, 0, dset);
+                quad.run(scb, 0);
+              });
+              sw.queue_present(dq);
+            }
           }
         }
       });
