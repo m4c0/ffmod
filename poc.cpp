@@ -8,33 +8,15 @@ import voo;
 
 static constexpr const auto filename = "movie.mov";
 
-void copy_frame_yuv(const ffmod::frame &frm, unsigned char *yy,
-                    unsigned char *uu, unsigned char *vv) {
-  auto w = (*frm)->width;
-  auto h = (*frm)->height;
-
-  for (auto y = 0; y < h; y++) {
-    for (auto x = 0; x < w; x++) {
-      *yy++ = (*frm)->data[0][y * (*frm)->linesize[0] + x];
-    }
-  }
-  for (auto y = 0; y < h / 2; y++) {
-    for (auto x = 0; x < w / 2; x++) {
-      *uu++ = (*frm)->data[1][y * (*frm)->linesize[1] + x];
-      *vv++ = (*frm)->data[2][y * (*frm)->linesize[2] + x];
-    }
-  }
-}
-
 class thread : public voo::casein_thread {
   void copy_frame(voo::h2l_yuv_image *img, ffmod::frame &frm) {
     voo::mapmem y{img->host_memory_y()};
     voo::mapmem u{img->host_memory_u()};
     voo::mapmem v{img->host_memory_v()};
 
-    copy_frame_yuv(frm, static_cast<unsigned char *>(*y),
-                   static_cast<unsigned char *>(*u),
-                   static_cast<unsigned char *>(*v));
+    ffmod::copy_frame_yuv(frm, static_cast<unsigned char *>(*y),
+                          static_cast<unsigned char *>(*u),
+                          static_cast<unsigned char *>(*v));
   }
 
 public:
@@ -43,7 +25,6 @@ public:
     voo::one_quad quad{dq};
 
     auto fmt_ctx = ffmod::avformat_open_input(filename);
-    ffmod::avformat_find_stream_info(fmt_ctx);
 
     // TODO: detect stream type instead of guessing
     // This allows usage of files with multiple streams (ex: OBS with two audio

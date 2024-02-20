@@ -47,18 +47,19 @@ export using packet = hai::holder<AVPacket, deleter>;
 export using frame_ref = hai::holder<AVFrame, unref>;
 export using packet_ref = hai::holder<AVPacket, unref>;
 
+export void avformat_find_stream_info(fmt_ctx &ctx) {
+  assert_p(avformat_find_stream_info(*ctx, nullptr),
+           "Could not find stream info");
+}
+
 export auto avformat_open_input(const char *filename) {
   fmt_ctx res{};
   assert_p(avformat_open_input(&*res, filename, nullptr, nullptr),
            "Failed to read input file");
 
+  avformat_find_stream_info(res);
   av_dump_format(*res, 0, filename, 0);
   return res;
-}
-
-export void avformat_find_stream_info(fmt_ctx &ctx) {
-  assert_p(avformat_find_stream_info(*ctx, nullptr),
-           "Could not find stream info");
 }
 
 export auto av_find_best_stream(fmt_ctx &ctx, AVMediaType mt) {
@@ -122,6 +123,24 @@ export auto frame_timestamp(const fmt_ctx &ctx, const frame &frm,
   auto t = static_cast<double>((*frm)->pts);
   auto tb = st->time_base;
   return t * av_q2d(tb);
+}
+
+export void copy_frame_yuv(const frame &frm, unsigned char *yy,
+                           unsigned char *uu, unsigned char *vv) {
+  auto w = (*frm)->width;
+  auto h = (*frm)->height;
+
+  for (auto y = 0; y < h; y++) {
+    for (auto x = 0; x < w; x++) {
+      *yy++ = (*frm)->data[0][y * (*frm)->linesize[0] + x];
+    }
+  }
+  for (auto y = 0; y < h / 2; y++) {
+    for (auto x = 0; x < w / 2; x++) {
+      *uu++ = (*frm)->data[1][y * (*frm)->linesize[1] + x];
+      *vv++ = (*frm)->data[2][y * (*frm)->linesize[2] + x];
+    }
+  }
 }
 
 // ffmpeg sends partial lines for each call. we need to track it and only submit
