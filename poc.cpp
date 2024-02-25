@@ -54,7 +54,8 @@ public:
 };
 
 class thread : public voo::casein_thread {
-  siaudio::ring_buffered_stream m_audio{};
+  // TODO: proper sample rate detection
+  siaudio::ring_buffered_stream m_audio{48000};
 
   void copy_frame(voo::h2l_yuv_image *img, ffmod::frame &frm) {
     voo::mapmem y{img->host_memory_y()};
@@ -118,6 +119,7 @@ public:
     while (!interrupted()) {
       voo::swapchain_and_stuff sw{dq};
 
+      // TODO: recreate movie texture after resize
       extent_loop([&] {
         // From FFMPEG docs: "For video, the packet contains exactly one frame.
         // For audio, it contains an integer number of frames if each frame has
@@ -135,8 +137,7 @@ public:
                 if (!*frm_ref)
                   break;
 
-                // TODO: proper conversion from sample rate to 44100
-                auto n = (*frm)->nb_samples * 44100 / (*frm)->sample_rate;
+                auto n = (*frm)->nb_samples;
                 auto *data =
                     reinterpret_cast<float *>((*frm)->extended_data[0]);
                 m_audio.push_frame(data, n);
